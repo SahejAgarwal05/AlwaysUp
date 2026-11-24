@@ -141,6 +141,7 @@ if [[ "$MODE" == "--dmg" ]]; then
   cp -R "$APP" "$STAGE/"
   ln -s /Applications "$STAGE/Applications"
   cp LICENSE "$STAGE/LICENSE.txt"
+  cp DISCLAIMER.md "$STAGE/Disclaimer.txt"
   cp docs/DMG-README.txt "$STAGE/Read Me First.txt"
   hdiutil create -quiet -volname "AlwaysUp" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
   rm -rf "$STAGE"

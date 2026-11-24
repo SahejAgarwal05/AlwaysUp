@@ -2,13 +2,17 @@
 
 A macOS menu bar app that keeps your Mac — and your AI agents — running with the lid closed.
 
+> **Use at your own risk.** AlwaysUp stops your Mac sleeping with the lid closed, which can make it
+> hot in a bag, drain the battery and pause or quit other apps. It comes with no warranty and isn't
+> affiliated with Apple or any AI vendor. Read the [disclaimer](DISCLAIMER.md) before using it.
+
 ## Install
 
 You need a Mac on macOS 13 (Ventura) or newer and Apple's Command Line Tools
 (`xcode-select --install`). Xcode itself is not needed.
 
 ```bash
-git clone https://github.com/SahejAgarwal05/always-up.git && cd always-up
+git clone https://github.com/SahejAgarwal05/AlwaysUp.git && cd AlwaysUp
 ./build.sh --install
 ```
 
@@ -20,8 +24,8 @@ Developed and tested on an Apple Silicon Mac with Swift 6.2. Intel Macs should w
 
 ### Or download the app
 
-**[Download AlwaysUp-1.0.dmg](https://github.com/SahejAgarwal05/always-up/raw/main/dist/AlwaysUp-1.0.dmg)**
-(also on the [releases page](https://github.com/SahejAgarwal05/always-up/releases)). It runs on
+**[Download AlwaysUp-1.0.dmg](https://github.com/SahejAgarwal05/AlwaysUp/raw/main/dist/AlwaysUp-1.0.dmg)**
+(also on the [releases page](https://github.com/SahejAgarwal05/AlwaysUp/releases)). It runs on
 Apple Silicon and Intel Macs with macOS 13 or newer: open it and drag AlwaysUp to Applications. That copy isn't notarized by Apple, so the first time you open it macOS
 will refuse; go to **System Settings → Privacy & Security** and click **Open Anyway**. Building from
 source avoids this.
@@ -180,7 +184,7 @@ The one thing it won't do is put the Mac to sleep, since that checks the real li
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and the [changelog](CHANGELOG.md).
+See the [disclaimer](DISCLAIMER.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and the [changelog](CHANGELOG.md).
 
 ## License
 

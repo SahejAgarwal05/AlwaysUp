@@ -28,6 +28,16 @@ Quit AlwaysUp from its menu, then delete it from Applications. If you turned on
 "Passwordless mode", turn it off in the app first, or run:
   sudo rm /etc/sudoers.d/alwaysup
 
-AlwaysUp is free, open-source software under the MIT License (see LICENSE.txt).
-It comes with no warranty. A laptop kept awake in a bag gets warm; leave the
-battery and overheating guards on.
+Disclaimer
+----------
+AlwaysUp is free, open-source software under the MIT License (see LICENSE.txt),
+provided "as is" with no warranty. You use it at your own risk.
+
+It stops your Mac sleeping with the lid closed. A laptop kept awake in a bag
+can get very hot and damage itself or its battery; don't leave it running
+where it can't cool down, and leave the battery and overheating guards on.
+Saver Mode pauses and can quit other apps, which may lose unsaved work.
+
+The authors are not liable for any damage, data loss or cost. AlwaysUp is not
+affiliated with Apple or with any company whose products it detects.
+Full text: https://github.com/SahejAgarwal05/AlwaysUp/blob/main/DISCLAIMER.md
