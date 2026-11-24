@@ -20,8 +20,9 @@ Developed and tested on an Apple Silicon Mac with Swift 6.2. Intel Macs should w
 
 ### Or download the app
 
-Releases have a ready-made `AlwaysUp-<version>.dmg` for Apple Silicon and Intel: open it and drag
-AlwaysUp to Applications. That copy isn't notarized by Apple, so the first time you open it macOS
+**[Download AlwaysUp-1.0.dmg](https://github.com/SahejAgarwal05/always-up/raw/main/dist/AlwaysUp-1.0.dmg)**
+(also on the [releases page](https://github.com/SahejAgarwal05/always-up/releases)). It runs on
+Apple Silicon and Intel Macs with macOS 13 or newer: open it and drag AlwaysUp to Applications. That copy isn't notarized by Apple, so the first time you open it macOS
 will refuse; go to **System Settings → Privacy & Security** and click **Open Anyway**. Building from
 source avoids this.
 
@@ -75,7 +76,7 @@ The end-to-end self-test drives the real engine with a simulated lid/monitor/bat
 pause, and a fake Docker server. It never touches Wi‑Fi, Bluetooth or the screen, only pauses its own
 dummy app, briefly mutes the speakers, and restores everything when done.
 
-`./build.sh --dmg` builds a universal app and packs `build/AlwaysUp-<version>.dmg` for a release
+`./build.sh --dmg` builds a universal app and packs `build/AlwaysUp-<version>.dmg` (copy it to `dist/` for a release)
 (the version number is at the top of `build.sh`). With a Developer ID certificate and
 `ALWAYSUP_NOTARY_PROFILE` set to a stored `notarytool` profile it also notarizes the image; that
 path is untested, since the project has no certificate yet.
