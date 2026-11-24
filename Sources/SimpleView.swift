@@ -97,11 +97,15 @@ struct SimpleView: View {
 
     private var agentsCard: some View {
         Card("Your agents", subtitle: "Switch one on and your Mac stays awake while it runs — even with the lid closed.") {
-            if e.detected.isEmpty {
+            if e.detected.isEmpty && e.agentKinds.isEmpty {
                 Text("No agents running right now. Start Claude Code, Codex, Gemini CLI, Aider… and they'll show up here.")
                     .font(.callout).foregroundStyle(.secondary)
             } else {
                 RowStack {
+                    ForEach(e.agentKinds, id: \.self) { name in
+                        AgentRuleRow(e: e, agent: name)
+                        Divider()
+                    }
                     ForEach(e.detected) { a in
                         AgentSwitchRow(e: e, a: a)
                         if a.id != e.detected.last?.id { Divider() }

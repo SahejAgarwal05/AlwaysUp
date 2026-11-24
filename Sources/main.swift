@@ -155,6 +155,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 i.representedObject = a.proc.pid
                 m.addItem(i)
             }
+            for name in e.agentKinds where !e.keepsEvery(name) {
+                let i = item("   Always keep every \(name)", #selector(keepEvery(_:)))
+                i.representedObject = name
+                m.addItem(i)
+            }
         }
 
         // Saver Mode
@@ -188,6 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.addItem(saverItem)
 
         m.addItem(.separator())
+        m.addItem(item("Check for Updates…", #selector(openReleases)))
         m.addItem(item("Quit AlwaysUp (restores everything)", #selector(quit), key: "q"))
     }
 
@@ -222,6 +228,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             e.addAgent(a, byName: false)
         }
     }
+    @objc private func openReleases() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/SahejAgarwal05/AlwaysUp/releases")!)
+    }
+    @objc private func keepEvery(_ s: NSMenuItem) { if let n = s.representedObject as? String { e.setKeepEvery(n, true) } }
     @objc private func markContainer(_ s: NSMenuItem) {
         if let id = s.representedObject as? String, let c = e.containers.first(where: { $0.id == id }) { e.addContainer(c) }
     }

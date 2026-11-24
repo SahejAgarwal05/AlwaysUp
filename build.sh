@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 MODE="${1:-}"
-VERSION="1.0"
+VERSION="1.1"
 BIN_DIRS=(/opt/homebrew/bin /usr/local/bin)
 SUDOERS=/etc/sudoers.d/alwaysup
 
@@ -31,11 +31,12 @@ if [[ "$MODE" == "--uninstall" ]]; then
   done
   if pmset -g | grep -q 'SleepDisabled[[:space:]]*1'; then
     echo "Sleep is still disabled; turning it back on (may ask for your password)."
-    sudo pmset -a disablesleep 0
+    sudo -n pmset -a disablesleep 0 2>/dev/null || sudo pmset -a disablesleep 0 \
+      || echo "Couldn't do that. Run this yourself:  sudo pmset -a disablesleep 0" >&2
   fi
   if [[ -e "$SUDOERS" ]]; then
     echo "Removing $SUDOERS (may ask for your password)."
-    sudo rm -f "$SUDOERS"
+    sudo rm -f "$SUDOERS" || echo "Couldn't remove it. Run this yourself:  sudo rm $SUDOERS" >&2
   fi
   rm -rf "$HOME/Library/Application Support/AlwaysUp"
   defaults delete local.alwaysup >/dev/null 2>&1 || true

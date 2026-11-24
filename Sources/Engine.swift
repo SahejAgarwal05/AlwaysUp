@@ -12,6 +12,8 @@ enum TargetKind: Codable, Hashable {
     case app(bundleID: String, name: String)
     case processName(String)
     case container(id: String, name: String)
+    /// Every running instance of a detected agent (e.g. "Claude Code"), including ones started later.
+    case agent(String)
 }
 
 enum ExpireAction: String, Codable, CaseIterable, Identifiable {
@@ -35,6 +37,8 @@ struct Target: Codable, Identifiable, Hashable {
     var expired = false
     var pausedPIDs: [Int32] = []      // set when the timer paused it
     var containerPaused: Bool?        // set when the timer paused a Docker container
+    /// `.agent` rules: instances the user switched off individually (forgotten when they exit).
+    var skip: [Int32]?
     var isTimerPaused: Bool { !pausedPIDs.isEmpty || containerPaused == true }
 
     var displayName: String {
@@ -43,6 +47,7 @@ struct Target: Codable, Identifiable, Hashable {
         case .app(_, let n): n
         case .processName(let n): n
         case .container(_, let n): n
+        case .agent(let n): "Every \(n)"
         }
     }
     var kindLabel: String {
@@ -51,6 +56,7 @@ struct Target: Codable, Identifiable, Hashable {
         case .app(let b, _): b
         case .processName: "any process with this name"
         case .container(let id, _): "Docker · \(id.prefix(12))"
+        case .agent: "all of them, including ones you start later"
         }
     }
 }
@@ -205,7 +211,9 @@ private struct Activity {
     var at: Date
     var lastActive: Date
     /// The agent itself said it's waiting for you (`AlwaysUp done`). Cleared when it gets busy again.
+    /// With several sessions under one kept item, it's only "done" when every one of them said so.
     var done = false
+    var donePIDs: Set<Int32> = []
     var needsBaseline = true
 }
 
@@ -308,6 +316,8 @@ final class Engine: ObservableObject {
 
     // Per-item bookkeeping (not saved)
     private var presence: [UUID: Bool] = [:]
+    /// "Every …" rules: the sessions each one covered at the last look, to notice one finishing.
+    private var ruleSessions: [UUID: Set<Int32>] = [:]
     private var activity: [UUID: Activity] = [:]
     private var idleNotified: Set<UUID> = []
     private var agentCache: [Int32: (start: Date, path: String, hit: (name: String, isApp: Bool, command: String)?)] = [:]
@@ -492,6 +502,10 @@ final class Engine: ObservableObject {
             let l = n.lowercased()
             return procs.filter { $0.uid == myUID && ($0.displayName.lowercased() == l || $0.comm.lowercased() == l) }
                 .map(\.pid)
+        case .agent(let n):
+            let skip = t.skip ?? []
+            return detected.filter { $0.agent == n && procByPID[$0.proc.pid] != nil && !skip.contains($0.proc.pid) }
+                .map(\.proc.pid)
         }
     }
 
@@ -540,6 +554,13 @@ final class Engine: ObservableObject {
         }
     }
     var holdingCount: Int { targets.filter(isHolding).count }
+    /// Like `holdingCount`, but an "every Claude Code" rule counts each session it covers.
+    var holdingProcessCount: Int {
+        targets.filter(isHolding).reduce(0) { n, t in
+            if case .agent = t.kind { return n + livePIDs(t).count }
+            return n + 1
+        }
+    }
 
     /// Reads each process's command line once and remembers the answer until the process changes.
     func scanAgents() {
@@ -664,7 +685,10 @@ final class Engine: ObservableObject {
         trackAway(since: before)
         processRequests()
         ticks += 1
-        if windowVisible || ticks % 6 == 1 { scanAgents() }
+        // With an "every Claude Code" rule, a new session must be noticed right away (the scan is
+        // cheap: command lines are only read for processes it hasn't seen).
+        let hasAgentRule = targets.contains { if case .agent = $0.kind { return true }; return false }
+        if windowVisible || hasAgentRule || ticks % 6 == 1 { scanAgents() }
 
         trackTargets()
         checkTargetTimers()
@@ -742,14 +766,17 @@ final class Engine: ObservableObject {
                     handled = false     // not in the process list yet — try again next time
                 }
             case "done", "busy":
-                let pids = Set(r.pids)
-                for t in targets where !pids.isDisjoint(with: livePIDs(t)) {
-                    if r.cmd == "done" {
-                        activity[t.id] = Activity(at: now, lastActive: now, done: true)
-                    } else {
-                        activity[t.id] = Activity(at: now, lastActive: now)
-                        idleNotified.remove(t.id)
-                    }
+                // The caller lists its ancestors, nearest first. Only the nearest kept one is meant:
+                // an agent started by another agent must not speak for the one that started it.
+                let kept = Set(targets.flatMap(livePIDs))
+                guard let nearest = r.pids.first(where: kept.contains) else { break }
+                for t in targets {
+                    let roots = Set(livePIDs(t)), hit = roots.intersection([nearest])
+                    guard !hit.isEmpty else { continue }
+                    var said = activity[t.id]?.donePIDs.intersection(roots) ?? []
+                    if r.cmd == "done" { said.formUnion(hit) } else { said.subtract(hit) }
+                    activity[t.id] = Activity(at: now, lastActive: now, done: said == roots, donePIDs: said)
+                    if said != roots { idleNotified.remove(t.id) }
                 }
             case "simulate": simulate(r.sim ?? [:])
             default: break
@@ -796,6 +823,17 @@ final class Engine: ObservableObject {
             } else {
                 present = !livePIDs(t).isEmpty
             }
+            if case .agent(let name) = t.kind {
+                let live = Set(livePIDs(t))
+                // Gone from the process list (not just switched off by hand) → that session finished.
+                let finished = (ruleSessions[t.id] ?? []).subtracting(live).filter { procByPID[$0] == nil }
+                ruleSessions[t.id] = live
+                if !finished.isEmpty, !t.expired {
+                    let what = finished.count == 1 ? "\(name) finished" : "\(finished.count) \(name) sessions finished"
+                    notify(what, live.isEmpty ? "It's no longer keeping your Mac awake."
+                                              : "\(live.count) still running.")
+                }
+            }
             let was = presence[t.id]
             presence[t.id] = present
             guard let was, was != present else { continue }
@@ -813,9 +851,14 @@ final class Engine: ObservableObject {
                 }
             }
         }
+        for i in ts.indices where ts[i].skip != nil {
+            let alive = ts[i].skip!.filter { procByPID[$0] != nil }
+            if alive != ts[i].skip! { ts[i].skip = alive.isEmpty ? nil : alive }
+        }
         if ts != targets { targets = ts }
         let ids = Set(targets.map(\.id))
         presence = presence.filter { ids.contains($0.key) }
+        ruleSessions = ruleSessions.filter { ids.contains($0.key) }
         activity = activity.filter { ids.contains($0.key) }
         idleNotified.formIntersection(ids)
 
@@ -844,6 +887,9 @@ final class Engine: ObservableObject {
                 activity[t.id] = Activity(cpu: cpu, at: now, lastActive: now, needsBaseline: false)
                 continue
             }
+            // A session that exited no longer counts; a new one hasn't said "done" yet.
+            a.donePIDs.formIntersection(roots)
+            a.done = !a.donePIDs.isEmpty && a.donePIDs == Set(roots)
             if a.needsBaseline {
                 a.cpu = cpu; a.at = now; a.needsBaseline = false
                 activity[t.id] = a
@@ -853,7 +899,16 @@ final class Engine: ObservableObject {
             guard dt >= 5 else { continue }     // too short a window to judge
             var used = 0.0
             for (p, c) in cpu { used += max(0, c - (a.cpu[p] ?? 0)) }
-            if used > dt * 0.01 { a.lastActive = now; a.done = false }
+            if used > dt * 0.01 {
+                a.lastActive = now
+                a.done = false
+                // Only the sessions that actually worked stop being "done".
+                for r in roots where a.donePIDs.contains(r) {
+                    let tree = [r] + descendants(r)
+                    let mine = tree.reduce(0.0) { $0 + max(0, (cpu[$1] ?? 0) - (a.cpu[$1] ?? 0)) }
+                    if mine > dt * 0.01 { a.donePIDs.remove(r) }
+                }
+            }
             a.cpu = cpu
             a.at = now
             activity[t.id] = a
@@ -1153,13 +1208,53 @@ final class Engine: ObservableObject {
     }
 
     func addAgent(_ a: DetectedAgent, byName: Bool) {
+        // Under an "every …" rule this one was switched off by hand → switch it back on.
+        if let i = targets.firstIndex(where: { $0.kind == .agent(a.agent) }) {
+            targets[i].skip = targets[i].skip.flatMap { s in
+                let rest = s.filter { $0 != a.proc.pid }
+                return rest.isEmpty ? nil : rest
+            }
+            return
+        }
         if byName { add(.processName(a.proc.displayName)) }
         else { addProc(a.proc, name: "\(a.agent) (\(a.proc.displayName))") }
     }
 
-    /// Stop keeping a detected agent running (removes whichever kept item covers it).
+    /// Stop keeping a detected agent running. Under an "every …" rule only this one is left out;
+    /// otherwise the kept item that covers it is removed.
     func unmark(_ a: DetectedAgent) {
-        for t in targets where livePIDs(t).contains(a.proc.pid) { removeTarget(t.id) }
+        for t in targets where livePIDs(t).contains(a.proc.pid) {
+            if case .agent = t.kind, let i = targets.firstIndex(where: { $0.id == t.id }) {
+                targets[i].skip = (targets[i].skip ?? []) + [a.proc.pid]
+            } else {
+                removeTarget(t.id)
+            }
+        }
+    }
+
+    /// Agent names that have (or could have) an "every …" rule: the ones running now plus saved rules.
+    var agentKinds: [String] {
+        var names: [String] = []
+        for t in targets { if case .agent(let n) = t.kind, !names.contains(n) { names.append(n) } }
+        for a in detected where !names.contains(a.agent) { names.append(a.agent) }
+        return names
+    }
+
+    func keepsEvery(_ agent: String) -> Bool { targets.contains { $0.kind == .agent(agent) } }
+
+    /// The saved rule: keep every instance of this agent, including ones started later.
+    func setKeepEvery(_ agent: String, _ on: Bool) {
+        if on {
+            guard !keepsEvery(agent) else { return }
+            // Single-process items for the same agent are now covered by the rule.
+            let covered = Set(detected.filter { $0.agent == agent }.map(\.proc.pid))
+            for t in targets {
+                if case .pid(let p, _, _) = t.kind, covered.contains(p) { removeTarget(t.id) }
+            }
+            add(.agent(agent))
+        } else {
+            for t in targets where t.kind == .agent(agent) { removeTarget(t.id) }
+        }
     }
 
     func addApp(bundleID: String, name: String) { add(.app(bundleID: bundleID, name: name)) }

@@ -31,6 +31,8 @@ struct AdvancedView: View {
     // MARK: Kept running
 
     private var unmarked: [DetectedAgent] { e.detected.filter { !e.isMarked($0) } }
+    /// Kinds of agent running now that don't have an "always keep every …" rule yet.
+    private var openKinds: [String] { e.agentKinds.filter { !e.keepsEvery($0) } }
     private var unmarkedContainers: [Container] { e.containers.filter { !e.isMarked($0) } }
 
     private var keptCard: some View {
@@ -48,8 +50,11 @@ struct AdvancedView: View {
                     if t.id != e.targets.last?.id { Divider() }
                 }
 
-                if !unmarked.isEmpty || !unmarkedContainers.isEmpty {
+                if !unmarked.isEmpty || !unmarkedContainers.isEmpty || !openKinds.isEmpty {
                     Text("Found on this Mac").font(.subheadline.weight(.semibold)).padding(.top, 6)
+                    ForEach(openKinds, id: \.self) { name in
+                        AgentRuleRow(e: e, agent: name)
+                    }
                     ForEach(unmarked) { a in
                         AgentSwitchRow(e: e, a: a)
                     }
@@ -312,6 +317,7 @@ struct TargetRow: View {
         case .app: "macwindow"
         case .processName: "text.magnifyingglass"
         case .container: "shippingbox"
+        case .agent: "sparkles"
         }
     }
 

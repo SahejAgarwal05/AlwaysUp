@@ -310,6 +310,74 @@ MainActor.assumeIsolated {
         check(e.detected.count == 2, "adding a custom name re-scans")
     }
 
+    section("Always keep every instance of an agent")
+    do {
+        let w = World(); let dir = freshDir()
+        w.add(100, "claude"); w.add(110, ppid: 100, "node"); w.add(300, "vim")
+        w.args = [100: ["claude"], 110: ["node"], 300: ["vim"]]
+        w.cpu = [100: 0, 110: 0, 200: 0, 300: 0]
+        let e = makeEngine(w, dir: dir)
+        e.tick()
+        e.addAgent(e.detected[0], byName: false)
+        e.setKeepEvery("Claude Code", true); e.tick()
+        check(e.targets.count == 1 && e.targets[0].displayName == "Every Claude Code", "the rule replaces the single-process item", "\(e.targets.map(\.displayName))")
+        check(e.awake, "awake while one session runs")
+
+        w.add(200, "claude"); w.args[200] = ["claude"]
+        w.advance(10); e.tick()
+        check(e.livePIDs(e.targets[0]) == [100, 200], "a session started later is kept without touching anything", "\(e.livePIDs(e.targets[0]))")
+        check(e.detected.allSatisfy(e.isMarked), "both show as switched on")
+
+        let second = e.detected.first { $0.proc.pid == 200 }!
+        e.unmark(second); e.tick()
+        check(e.targets.count == 1 && e.livePIDs(e.targets[0]) == [100] && !e.isMarked(second), "one session can be switched off on its own")
+        e.addAgent(second, byName: false); e.tick()
+        check(e.livePIDs(e.targets[0]) == [100, 200] && e.targets.count == 1, "and switched back on")
+
+        // done / busy are per session
+        request(dir, Request(cmd: "done", pids: [100])); e.tick()
+        check(e.awake, "one session done, the other still working → stays awake")
+        request(dir, Request(cmd: "done", pids: [999, 200])); e.tick()
+        check(!e.awake, "every session done → released")
+        w.add(201, "claude"); w.args[201] = ["claude"]; w.cpu[201] = 0
+        w.advance(10); e.tick()
+        check(e.awake, "a new session starting holds the Mac again")
+        w.remove(201); w.advance(10); e.tick()
+        check(!e.awake, "…and when it exits the rest are still done")
+        request(dir, Request(cmd: "busy", pids: [100])); e.tick()
+        check(e.awake, "busy from one session holds again")
+
+        // An agent started by another agent (claude → zsh → claude) only speaks for itself.
+        w.add(120, ppid: 100, "zsh"); w.add(130, ppid: 120, "claude"); w.args[120] = ["zsh"]; w.args[130] = ["claude"]
+        w.cpu[130] = 0
+        w.advance(10); e.tick()
+        check(e.livePIDs(e.targets[0]).contains(130), "a session started by another session is kept too")
+        request(dir, Request(cmd: "done", pids: [200])); e.tick()
+        request(dir, Request(cmd: "done", pids: [131, 130, 120, 100])); e.tick()
+        check(e.awake, "the child finishing doesn't mark the session that started it as done")
+        request(dir, Request(cmd: "done", pids: [100])); e.tick()
+        check(!e.awake, "…until that one says so itself")
+        w.remove(120); w.remove(130)
+        request(dir, Request(cmd: "busy", pids: [100])); e.tick()
+
+        w.lid = true; e.pushURL = "https://ntfy.sh/x"
+        w.remove(200); w.advance(10); e.tick()
+        check(w.pushes.last == "Claude Code finished", "one session finishing is announced on its own", "\(w.pushes)")
+        w.remove(100); w.remove(110); w.advance(10); e.tick()
+        w.lid = false; w.advance(10); e.tick()
+        check(!e.awake && e.targets.count == 1, "all sessions gone → released, the rule stays saved")
+        w.add(400, "claude"); w.args[400] = ["claude"]; w.advance(10); e.tick()
+        check(e.awake, "the next session, later, is kept again")
+
+        let saved = UserDefaults(suiteName: suite)!.data(forKey: "state")!
+        w.sleepDisabled = false     // the first copy quit normally
+        let e2 = makeEngine(w, state: String(data: saved, encoding: .utf8)!)
+        e2.tick()
+        check(e2.keepsEvery("Claude Code") && e2.awake, "the rule survives a restart")
+        e2.setKeepEvery("Claude Code", false); e2.tick()
+        check(e2.targets.isEmpty && !e2.awake, "switching the rule off removes it", "\(e2.targets.map(\.displayName)) awake=\(e2.awake) manual=\(e2.manualActive) w=\(w.sleepDisabled)")
+    }
+
     section("Relaunch after a crash")
     do {
         let w = World(); w.sleepDisabled = true

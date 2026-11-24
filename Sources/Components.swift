@@ -252,7 +252,8 @@ struct StatusCard: View {
             return "Stays on until you turn it off"
         }
         if e.awake, e.holdingCount > 0 {
-            return "Staying awake while \(e.holdingCount) agent\(e.holdingCount == 1 ? " is" : "s are") running"
+            let n = e.holdingProcessCount
+            return "Staying awake while \(n) agent\(n == 1 ? " is" : "s are") running"
         }
         return "Turn it on, or switch on an agent below"
     }
@@ -346,6 +347,20 @@ struct AgentSwitchRow: View {
         Toggle(isOn: Binding(get: { e.isMarked(a) }, set: { $0 ? e.addAgent(a, byName: false) : e.unmark(a) })) {
             RowLabel(icon: a.isApp ? "macwindow" : "terminal", title: a.agent,
                      detail: "PID \(String(a.proc.pid)) · running \(formatDuration(e.now.timeIntervalSince(a.proc.start)))")
+        }
+        .toggleStyle(.switch)
+    }
+}
+
+/// The saved rule for one kind of agent: keep every instance, including ones started later.
+struct AgentRuleRow: View {
+    @ObservedObject var e: Engine
+    let agent: String
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { e.keepsEvery(agent) }, set: { e.setKeepEvery(agent, $0) })) {
+            RowLabel(icon: "sparkles", title: "Always keep every \(agent)",
+                     detail: "New ones are kept automatically. Switch single ones off below.")
         }
         .toggleStyle(.switch)
     }

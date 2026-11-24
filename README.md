@@ -24,7 +24,7 @@ Developed and tested on an Apple Silicon Mac with Swift 6.2. Intel Macs should w
 
 ### Or download the app
 
-**[Download AlwaysUp-1.0.dmg](https://github.com/SahejAgarwal05/AlwaysUp/raw/main/dist/AlwaysUp-1.0.dmg)**
+**[Download AlwaysUp-1.1.dmg](https://github.com/SahejAgarwal05/AlwaysUp/raw/main/dist/AlwaysUp-1.1.dmg)**
 (also on the [releases page](https://github.com/SahejAgarwal05/AlwaysUp/releases)). It runs on
 Apple Silicon and Intel Macs with macOS 13 or newer: open it and drag AlwaysUp to Applications. That copy isn't notarized by Apple, so the first time you open it macOS
 will refuse; go to **System Settings → Privacy & Security** and click **Open Anyway**. Building from
@@ -96,6 +96,11 @@ rebuilds, so macOS doesn't forget its notification and open-at-login permissions
 - **Agent detection** — Claude Code, Codex CLI, Gemini CLI, Aider, Cursor Agent, OpenCode, Goose, Amp,
   Copilot CLI, Qwen Code, Crush, Cline, Open Interpreter, Ollama, plus the Claude / ChatGPT / Codex /
   Cursor / Windsurf apps. One click to mark them "kept running".
+- **Always keep every Claude Code** (or any other agent) — one saved switch per kind of agent. Every
+  session of it is kept, including ones you start later or that an agent starts in parallel, with no
+  need to pick process IDs. Single sessions can still be switched off by hand, and you're told when
+  each one finishes. Sub-agents that run
+  inside a session are part of that session's process, so they're always covered.
 - **Kept items** — add by detected agent, PID, process name, running app, app from disk, or by browsing
   all processes. Each has its own time limit (or unlimited) and its own action when time's up:
   release (let Mac sleep), pause the process, or quit it. The Mac stays awake while any kept item runs.

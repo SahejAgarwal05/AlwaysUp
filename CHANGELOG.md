@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1
+
+- "Always keep every <agent>" rule: keeps every session of an agent, including ones started later.
+- `alwaysup done` / `busy` are tracked per session, so one finished session doesn't release the Mac
+  while another is still working.
+- An agent started by another agent only reports `done` for itself, not for the one that started it.
+- A notification when a single session under a rule finishes ("Claude Code finished · 2 still running").
+- "Check for Updates…" in the menu (opens the releases page).
+- `./build.sh --uninstall` keeps going, with instructions, when it can't get admin rights.
+
 ## 1.0
 
 First public release.
